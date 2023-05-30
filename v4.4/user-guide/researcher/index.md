@@ -1,1 +1,0 @@
-#  Network and Researcher instances Configuration
