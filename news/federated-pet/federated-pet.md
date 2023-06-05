@@ -1,6 +1,6 @@
 ## Fed-BioMed for Federated-PET project
 
-<img src="/assets/img/VF-logo-FP-partenaires.png" width=400>
+![federated-pet](../assets/img/VF-logo-FP-partenaires.jpg#img-centered-md)
 
 Federated-PET is an oncology research project lead by Pr Olivier Humbert (Centre Antoine Lacassagne/Université Côte d’Azur/3IA Côte d’Azur). Federated-PET focuses on predicting the response to immunotherapy of patients followed for lung cancer and personalize the therapeutic strategy to improve the quality and life expectancy of patients. Federated-PET groups 8 hospitals and 4 research centers.
 

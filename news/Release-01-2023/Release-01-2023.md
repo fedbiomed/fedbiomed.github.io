@@ -1,6 +1,6 @@
 ## Fed-BioMed v4.1 new release
 
-<img src="/assets/img/v4.1.png">
+![v4.1](../assets/img/v4.1.jpg#img-centered-sm)
 
 Fed-BioMed v4.1 is now available. Here are some key new features:
 
@@ -10,4 +10,4 @@ Fed-BioMed v4.1 is now available. Here are some key new features:
 - improving `Researcher` log message, by introducing `Round` number
 - Bug fixes (FedProx `Aggregation` method, percentage completion logged when using Opacus, and other minor fixes)
 
-More details about the new features can be found in the [Fed-BioMed CHANGELOG](https://gitlab.inria.fr/fedbiomed/fedbiomed/-/blob/v4.1/CHANGELOG.md).
+More details about the new features can be found in the [Fed-BioMed CHANGELOG](https://github.com/fedbiomed/fedbiomed/blob/v4.1/CHANGELOG.md).

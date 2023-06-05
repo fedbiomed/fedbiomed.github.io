@@ -5,7 +5,8 @@ keywords: Fed-BioMed, federated learning
 ---
 ## Fed-BioMed at Hospital Centre Henri Becquerel of Rouen
 
-<img src="/assets/img/CHB_team.png">
+![cal](../assets/img/CHB_team.jpg#img-centered-md)
+
 
 A big thanks to Romain Modzelewski, Nathan Lapel, and Bastien Houis for the successful deployment of Fed-BioMed in Centre Henri-Becquerel!
 

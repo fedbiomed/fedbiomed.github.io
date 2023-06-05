@@ -1,6 +1,7 @@
 ## Fed-BioMed v3.3 new release
 
-<img src="/assets/img/v3.3.png">
+
+![v3.3](../assets/img/v3.3.jpg#img-centered-sm)
 
 Fed-BioMed v3.3 is now public. Here are some key new features:
 
@@ -11,5 +12,5 @@ Fed-BioMed v3.3 is now public. Here are some key new features:
 - improved support for macOSX 
 - new tutorials and notebooks
 
-All the new specifics are in the [Fed-BioMed CHANGELOG](https://gitlab.inria.fr/fedbiomed/fedbiomed/-/blob/master/CHANGELOG.md).
+All the new specifics are in the [Fed-BioMed CHANGELOG](https://github.com/fedbiomed/fedbiomed/blob/v3.3/CHANGELOG.md).
 
