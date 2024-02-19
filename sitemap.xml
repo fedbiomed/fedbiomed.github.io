@@ -281,6 +281,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://fedbiomed.org/latest/news/waicf-2024/</loc>
+         <lastmod>2024-02-19</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://fedbiomed.org/latest/news/welcome_08-2021/</loc>
          <lastmod>2024-02-19</lastmod>
          <changefreq>daily</changefreq>
