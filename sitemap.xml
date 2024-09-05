@@ -391,6 +391,11 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://fedbiomed.org/latest/news/Release-09-2024/</loc>
+         <lastmod>2024-09-05</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://fedbiomed.org/latest/news/Release-11-2022/</loc>
          <lastmod>2024-09-05</lastmod>
          <changefreq>daily</changefreq>
