@@ -1,1 +1,0 @@
-::: fedbiomed.researcher.node_state_agent

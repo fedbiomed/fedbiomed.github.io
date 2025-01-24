@@ -1,1 +1,0 @@
-::: fedbiomed.node.node_state_manager

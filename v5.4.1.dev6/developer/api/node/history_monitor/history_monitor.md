@@ -1,1 +1,0 @@
-::: fedbiomed.node.history_monitor

@@ -1,1 +1,0 @@
-::: fedbiomed.common.certificate_manager
