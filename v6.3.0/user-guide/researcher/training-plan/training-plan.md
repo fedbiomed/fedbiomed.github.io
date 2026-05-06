@@ -1,0 +1,500 @@
+---
+title: The Training Plan of Fed-BioMed
+description: A training plan is a class that defines the federated model training. It is responsible for providing base methods which allow every node to perform the training process.
+keywords: training data,training plan,fedbiomed
+---
+
+# The Training Plan
+
+A training plan is a class that defines the four main components of federated model training: the data, the model, the loss and the optimizer. It is responsible for providing custom methods allowing every node to perform the training.  In Fed-BioMed, you will be required to define a training plan class before submitting a federated training experiment.  You will do so by sub-classing one of the base training plan classes provided by the library, and overriding certain methods to suit your needs as explained below. The code of the whole training plan class is shipped to the nodes, meaning that you may define custom classes and functions inside it, and reuse them within the training routine.
+
+!!! abstract "Training Plans"
+    A Training Plan contains the recipe for executing the training loop on the nodes. It defines: the data, the model,
+    the loss function, and the optimizer. The code in the training plan is shipped in its entirety to the nodes, where
+    its different parts are executed at different times during the training loop.
+
+## The `TrainingPlan` class
+
+Fed-BioMed provides a base training plan class for two commonly-used ML frameworks: PyTorch (`fedbiomed.common.training_plans.TorchTrainingPlan`)
+and scikit-learn (`fedbiomed.common.training_plans.SKLearnTrainingPlan`). Therefore, the first step of the definition of your
+federated training experiment will be to define a new training plan class that inherits from one of these.
+
+### Pytorch Training Plan
+The interfaces for the two frameworks differ quite a bit, so let's start by taking the example of PyTorch:
+
+```python
+from fedbiomed.common.training_plans import TorchTrainingPlan
+
+
+class MyTrainingPlan(TorchTrainingPlan):
+    pass
+```
+
+The above example will not lead to a meaningful experiment, because we need to provide at least the following information
+to complete our training plan:
+
+- a model instance
+- an optimizer instance
+- a list of dependencies (i.e. modules to be imported before instantiating the model and optimizer)
+- how to load the training data (and potential preprocessing)
+- a loss function
+
+Following the PyTorch example, here is what the prototype of your training plan would look like:
+```python
+from fedbiomed.common.training_plans import TorchTrainingPlan
+
+class MyTrainingPlan(TorchTrainingPlan):
+    def init_model(self, model_args):
+        # defines and returns a model
+        pass
+
+    def init_optimizer(self, optimizer_args):
+        # defines and returns an optimizer
+        pass
+
+    def init_dependencies(self):
+        # returns a list of dependencies
+        pass
+
+    def training_data(self):
+        # returns a Fed-BioMed DataManager object
+        pass
+
+    def training_step(self, data, target):
+        # returns the loss
+        pass
+```
+
+### Scikit-learn Training Plan
+
+In the case of scikit-learn, Fed-BioMed already does a lot of the heavy lifting for you by providing the
+`FedPerceptron`, `FedSGDClassifier` and `FedSGDRegressor` classes as training plans. These classes already take care
+of the model and loss functions for you, so you only need to define how the data will
+be loaded, how to optimize the model and the dependencies. For example, in the case of `FedSGDClassifier`:
+
+```python
+from fedbiomed.common.training_plans import FedSGDClassifier
+
+class MyTrainingPlan(FedSGDClassifier):
+    def training_data(self):
+        # returns a Fed-BioMed DataManager object
+        pass
+
+    def init_optimizer(self, optimizer_args):
+        # defines and returns an optimizer: only declearn optimizer are permitted here
+        pass
+
+    def init_dependencies(self):
+        # returns a list of dependencies
+        pass
+```
+
+###
+
+!!! warning "Definition of `__init__` is discouraged for all training plans"
+    As you may have noticed, none of the examples defined an `__init__` function for the training plan. This is on
+    purpose! Overriding `__init__` is not required, and is actually discouraged, as it is reserved for
+    the library's internal use.
+    If you decide to override it, you do it at your own risk!
+
+
+## Accessing the Training Plan attributes
+
+Fed-BioMed provides the following getter functions to access Training Plan attributes:
+
+| attribute           | function           | TorchTrainingPlan  | SKLearnTrainingPlan | notes |
+|---------------------|--------------------|--------------------|---------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| model               | `model()`          | :heavy_check_mark: | :heavy_check_mark:  | you may not dynamically reassign a model. The instance of the model is created at initialization by storing the output of the `init_model` function.              |
+| optimizer           | `optimizer()`      | :heavy_check_mark: | :heavy_check_mark:  | you may not dynamically reassign an optimizer. The instance of the optimizer is created at initialization by storing the output of the `init_optimizer` function. |
+| model arguments     | `model_args()`     | :heavy_check_mark: | :heavy_check_mark:  | |
+| training arguments  | `training_args()`  | :heavy_check_mark: | :heavy_check_mark:  | |
+| optimizer arguments | `optimizer_args()` | :heavy_check_mark: | :heavy_check_mark:  | |
+| node is | `node_id()` | :heavy_check_mark: | :heavy_check_mark:  | |
+
+####
+
+!!! warning "Lifecycle of Training Plan Attributes"
+    The attributes in the table above will not be available during the `init_model`, `init_optimizer` and
+    `init_dependencies` functions, as they are set just after initialization. You may however use them in the definition
+    of `training_data`, `training_step` or `training_routine`.
+
+## Defining the training data
+
+The method `training_data` defines how datasets should be loaded in nodes to make them ready for training.
+In both PyTorch and scikit-learn training plans, you are required to define a `training_data` method with the following
+specs:
+
+1. takes as input a `batch_size` parameter
+2. returns a `fedbiomed.common.datamanager.DataManager` object
+3. inside the method, a dataset is instantiated according to the data type that you wish to use (one of `torch.Dataset`,
+   `numpy.ndarray` or a `*Dataset` class from the `fedbiomed.common.dataset` module)
+4. the dataset is used to initialize a `DataManager` class to be returned
+
+The signature of the `training_data` function is then:
+```python
+def training_data(self) -> DataManager:
+```
+
+You can read the documentation for [training data](../../researcher/training-data) to
+learn more about the `DataManager` class and various use cases.
+
+!!! warning "Be aware of the data types in your dataset"
+    It is ultimately your responsibility to write the code for `training_step` that correctly handles the data types
+    returned by the `__getitem__` function of the dataset you are targeting. Be aware of the specifics of your dataset
+    when writing this function.
+
+## Initializing the model
+
+In Pytorch training plans, you must also define a `init_model` function with the following signature:
+```python
+def init_model(self, model_args: Dict[str, Any]) -> torch.nn.Module:
+```
+
+The purpose of `init_model` is to return an instance of a trainable PyTorch model. Since the definition of such models can be quite large, a common pattern is to define the neural network class inside the training plan namespace, and simply instantiate it within `init_model`. This also allows to minimize the amount of adjustments needed to go from local PyTorch code to its federated version. Remember that only the code defined inside the training plan namespace will be shipped to the nodes for execution, so you may not use classes that are defined outside of it.
+
+The Pytorch neural network class that you define must satisfy the following constraints:
+1. it should inherit from `torch.nn.Module`
+2. it should implement a `forward` method that takes a `torch.Tensor` as input and returns a `torch.Tensor`
+Note that inheriting from `torch.nn.Sequential` and using the default `forward` method would also respect the
+conditions above.
+
+The `model_args` argument is a dictionary of model arguments that you may provide to the `Experiment` class and that will be automatically passed to the `init_model` function internally. If you followed the suggested pattern of defining the model class within the training plan namespace, you can easily adapt the model's constructor to make use of any model arguments that you wish to define.
+
+The example below, adapted from our getting started notebook, shows the suggested pattern, the use of `init_model`, and
+the use of `model_args`.
+
+```python
+import torch.nn as nn
+from fedbiomed.common.training_plans import TorchTrainingPlan
+from fedbiomed.common.datamanager import DataManager
+
+
+# Here we define the model to be used.
+# You can use any class name (here 'Net')
+class MyTrainingPlan(TorchTrainingPlan):
+
+    # Defines and return model
+    def init_model(self, model_args):
+        return self.Net(model_args = model_args)
+
+    class Net(nn.Module):
+        def __init__(self, model_args):
+            super().__init__()
+
+            fc_hidden_layer_size = model_args.get('fc_hidden_size', 128)
+
+            self.conv1 = nn.Conv2d(1, 32, 3, 1)
+            self.conv2 = nn.Conv2d(32, 64, 3, 1)
+            self.dropout1 = nn.Dropout(0.25)
+            self.dropout2 = nn.Dropout(0.5)
+            self.fc1 = nn.Linear(9216, fc_hidden_layer_size)
+            self.fc2 = nn.Linear(fc_hidden_layer_size, 10)
+
+        def forward(self, x):
+            x = self.conv1(x)
+            x = F.relu(x)
+            x = self.conv2(x)
+            x = F.relu(x)
+            x = F.max_pool2d(x, 2)
+            x = self.dropout1(x)
+            x = torch.flatten(x, 1)
+            x = self.fc1(x)
+            x = F.relu(x)
+            x = self.dropout2(x)
+            x = self.fc2(x)
+
+            output = F.log_softmax(x, dim=1)
+            return output
+
+    def training_data(self):
+        pass
+
+    def training_step(self, data, target):
+        pass
+
+    def init_optimizer(self, optimizer_args):
+        pass
+
+    def init_dependencies(self):
+        pass
+```
+
+## Defining the optimizer
+
+### Optimizer in PyTorch Training Plans
+
+For Pytorch training plans, you must also define a `init_optimizer` function with the following signature:
+
+```python
+def init_optimizer(self, optimizer_args: Dict[str, Any]) -> Union[torch.optim.Optimizer, fedbiomed.common.optimizer.Optimizer]:
+```
+
+The purpose of `init_optimizer` is to return an instance of a PyTorch optimizer or a `Fed-BioMed` optimizer powered with `declearn` optimizzation modules. You may instantiate a "vanilla" optimizer directly from `torch.optim`, or follow a similar pattern to `init_model` by defining a custom optimizer class
+within the training plan namespace.
+
+####
+
+!!! info "The output of `init_optimizer` must be either a `torch.optim` type or a `fedbiomed.common.optimizer.Optimizer`"
+    The output of `init_optimizer` must be either a vanilla optimizer provided by the `torch.optim` module, or a class
+    that inherits from `torch.optim.Optimizer`, or a [`fedbiomed.common.optimizer.Optimizer`](../../../developer/api/common/optimizer), populated with `declearn`'s `OptiModules` and `Regularizers`.
+
+!!! note "About declearn"
+    `declearn` provides a cross framework optimizers that can be used regardless of the machine learning framework. It also provides well known federated learning algorithms such as `Scaffold`. For further details on `declearn`'s `Optimizer`, [please visit the following webpage](./../../advanced-optimization).
+
+Similarly, the `optimizer_args` follow the same pattern as `model_args` described above. Note that the learning rate will always be included in the optimizer arguments with the key `lr`.
+
+A pretty straightforward example can be again found in the getting started notebook
+
+```python
+def init_optimizer(self, optimizer_args):
+    return torch.optim.Adam(self.model().parameters(), lr = optimizer_args["lr"])
+```
+
+### Optimizer in scikit-learn Training Plans
+
+In Scikit-Learn `Training Plans`, only `fedbimed.common.optimizer.Optimizer` optimizers can be defined in the `init_optimizer` method. Hence, its signature is:
+
+```python
+def init_optimizer(self, optimizer_args: Dict[str, Any]) -> fedbiomed.common.optimizer.Optimizer:
+```
+
+## Defining the loss function
+
+The PyTorch training plan requires you to define the loss function via the `training_step` method, with the following signature:
+
+```python
+def training_step(self, data, target) -> float:
+```
+
+The `training_step` method of the training class defines how the cost is computed by forwarding input values through the network and using the loss function. It should return the loss value. By default, it is not defined in the parent `TrainingPlan` class: it should be defined by the researcher in his/her model class, same as the `forward` method. An example of training step for PyTorch is shown below.
+
+```python
+    def training_step(self, data, target):
+        output = self.forward(data)
+        loss   = torch.nn.functional.nll_loss(output, target)
+        return loss
+```
+
+## Adding Dependencies
+
+By dependencies we mean here the python modules that are necessary to build all the various elements of your training
+plan on the node side.
+The method `init_dependencies` allows you to indicate modules that are needed by your model class, with the following
+signature:
+
+```python
+def init_dependencies(self) -> List[str]:
+```
+
+Each dependency should be defined as valid import statement in a string, for example `from torch.optim import Adam` or
+`import torch`, or `from declearn.optimizer.modules import AdamModule` (for its `declearn` alternative). You must specify dependencies for any python module that you wish to use, regardless of whether it
+is for the data, optimizer, model, etc...
+
+## `training_routine`
+
+The training routine is the heart of the training plan. This method performs the model training loop, based on given
+[model and training](../../researcher/experiment) arguments. For example, if the
+model is a neural network based on the PyTorch framework, the training routine is in charge of performing the training
+part over looping epochs and batches. If the model is a Scikit-Learn model, it fits the model by the given ML method
+and Scikit-Learn does the rest. The training routine is executed by the nodes after they have received a train request
+from the researcher and downloaded the training plan file.
+
+!!! warning "Overriding `training_routine` is discouraged"
+    Both PyTorch and scikit-learn training plans already implement a `training_routine`, that internally uses the
+    `training_step` provided by you to compute the loss function (only in the PyTorch case). Overriding this default
+    routine is strongly discouraged, and you may do so only at your own risk.
+
+As you can see from the following code snippet, the training routine requires some training arguments such
+as `epochs`, `lr`, `batch_size` etc. Since the `training_routine` is already defined by Fed-BioMed, you are only allowed
+to control the training process by changing these arguments. Modifying the training routine from the training plan class might raise unexpected errors.
+
+```python
+ def training_routine(self,
+                         epochs: int = 2,
+                         log_interval: int = 10,
+                         lr: Union[int, float] = 1e-3,
+                         batch_size: int = 48,
+                         batch_maxnum: int = 0,
+                         dry_run: bool = False,
+                         ... ):
+
+        # You can see details from `fedbiomed.common.torchnn`
+        # .....
+
+        for epoch in range(1, epochs + 1):
+            training_data = self.training_data()
+            for batch_idx, (data, target) in enumerate(training_data):
+                self.train()
+                data, target = data.to(self.device), target.to(self.device)
+                self.optimizer.zero_grad()
+                res = self.training_step(data, target)
+                res.backward()
+                self.optimizer.step()
+
+                #.....
+```
+
+
+## Exporting and importing model
+
+Each training plan provides export and import functionality.
+
+- Export facility is used for saving model parameters to a file after training the model in Fed-BioMed, so it can be used in another software (eg for inference).
+- Import facility is used for loading model parameters from a file, for example to specialize with Fed-BioMed a model pre-trained with another software (transfer learning) or a previous Fed-BioMed run.
+
+**Exports** and **imports** are handled through the [`Experiment`](../../researcher/experiment) interface. [`Experiment`](../../researcher/experiment) interface will initialize the model for you, by calling internally `Training Plan` methods `init_method` and `post_init`. See example below for an instantiated `Experiment` object named `exp`.
+
+To save model to file `/path/to/file` use:
+
+```python
+exp.training_plan().export_model('/path/to_file')
+```
+
+
+To load model from file `/path/to/file` use:
+
+```python
+exp.training_plan().import_model('/path/to_file')
+```
+
+Of course, loaded model needs to be identical to the training plan's model.
+
+
+!!! info "`export_model()` and `import_model()` actions depends on framework"
+    With PyTorch, these methods save and load the model parameters (`model.state_dict()`) with `torch.save()`/`torch.load()` as it is a [common practice](https://pytorch.org/tutorials/beginner/saving_loading_models.html)
+
+    With scikit-learn, these methods save and load the whole model with `joblib.dump()`/`joblib.load()` as it is also a [common practice](https://scikit-learn.org/stable/model_persistence.html)
+
+!!! warning "Security notice"
+    Only use `import_model()` with a trusted model file (trained by a trusted source, transmitted via secure channel).
+
+    In both PyTorch and scikit-learn, the model saving and loading facility are based on [pickle](https://docs.python.org/3/library/pickle.html). While it is the recommended way of saving models in these frameworks, a malicious pickle model can execute arbitrary code on your machine when loaded. Thus make sure you are loading a model from a reliable source.
+
+!!! warning "Usage through `Experiment`"
+    Both **exports** and **imports** must be used through [Experiment](../../researcher/experiment) interface. Indeed, `Experiment` class has methods to load Training Plans and for initializing Model. Once the Model is initialized, you can
+    use both `export_model` and `import_model` for saving model into a file and respectively load it from a file.
+
+## Advanced: node-specific behaviour
+
+Fed-BioMed exposes the ID of the local node through the `TrainingPlan.node_id()` getter function. 
+This function returns an alphanumeric string corresponding to the unique identifier, such as e.g. `NODE_e5fb7b0e-404d-44fe-904b-259036551e99`, or `None` when the training plan was not fully initialized (i.e. `post_init` has not yet been called) or when the training plan was constructed on the researcher side.
+Note that the `node_id` function does not return the human-readable node name that may have been additionally specified at node creation. 
+
+With the `node_id`, it is possible to implement node-specific behaviour using `if` statements, or through the following model args pattern:
+```python
+class MyTrainingPlan(TorchTrainingPlan):
+    def init_model(self, model_args):
+        return MyModel(my_param=model_args['my_param'][self.node_id()])
+    # Remaining training plan definition...
+
+model_args = {
+    'my_param': {
+        'NODE_e5fb7b0e-404d-44fe-904b-259036551e99': 1.0,
+        'NODE_dsl39m23-5551-4242-6767-ao832jkavj2m': 2.0
+    }
+}
+```
+
+## Advanced: tagging model parameters
+
+Fed-BioMed provides a mechanism to customize how individual model parameters are handled during federated training through the `tag_parameters` method. By default, all parameters follow the standard federated learning workflow: they are aggregated globally across nodes and updated each round from the researcher-aggregated values. Overriding `tag_parameters` allows you to exclude specific parameters out of this default behavior.
+
+### Available tags
+
+The `tag_parameters` method currently supports two tags:
+
+- **`local`**: The parameter is never shared with the researcher nor included in aggregation. It remains entirely local to the node.
+- **`persistent`**: The parameter is saved locally on the node at the end of each round.
+
+Tags can be combined: a parameter tagged as both `local` and `persistent` will be kept local *and* saved across rounds, and will be restored at the start of every round. A parameter tagged as `local` only (without `persistent`) is reset to its initial value at the start of every round.
+
+### Defining `tag_parameters`
+
+The `tag_parameters` method takes a parameter name as input and returns a set of tags. Return an empty set (the default) for standard federated behavior.
+
+#### PyTorch example
+
+```python
+import torch
+import torch.nn as nn
+from fedbiomed.common.training_plans import TorchTrainingPlan
+
+class MyTrainingPlan(TorchTrainingPlan):
+
+    class Net(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.shared_layer = nn.Linear(128, 64)
+            self.local_bn = nn.BatchNorm1d(64)
+            self.local_bias = nn.Parameter(torch.zeros(64))
+
+        def forward(self, x):
+            x = self.shared_layer(x)
+            x = self.local_bn(x)
+            return x
+
+    def init_model(self, model_args):
+        return self.Net()
+
+    def tag_parameters(self, name):
+        if name == "local_bias":
+            return {"local", "persistent"}
+        if name == "local_bn":
+            return {"local"}
+        return set()
+
+    # ... rest of the training plan
+```
+
+#### Scikit-learn example
+
+```python
+from fedbiomed.common.training_plans import FedSGDClassifier
+
+class MyTrainingPlan(FedSGDClassifier):
+
+    def tag_parameters(self, name):
+        # Keep the intercept local and persistent across rounds
+        if name == "intercept_":
+            return {"local", "persistent"}
+        return set()
+
+    def training_data(self):
+        # returns a Fed-BioMed DataManager object
+        pass
+
+    def init_optimizer(self, optimizer_args):
+        pass
+
+    def init_dependencies(self):
+        pass
+```
+
+### Handling of parameters tagged as `local` or `persistent` during training
+
+The way tagged parameters are handled is determined at the node level during each round, across three key steps.
+
+**At the start of a round**, the node reconstructs the full set of model parameters before loading them into the model. Parameters received from the researcher (i.e., the aggregated global parameters) serve as the base. The node then overrides specific entries depending on their tags:
+
+- Parameters tagged as both `local` and `persistent` are restored from the values saved at the end of the previous round. If no previous round exists (i.e., the first round), they are initialized from the model's initial weights as defined in `init_model`.
+- Parameters tagged as `local` only (without `persistent`) are always reinitialized from the model's initial weights at each round, regardless of any training that may have occurred in previous rounds.
+- All other parameters are taken as-is from the researcher-provided aggregated weights.
+
+**At the end of a round**, the node saves the current values of all parameters tagged as `persistent`. These saved values will be loaded and restored at the beginning of the next round.
+
+**When sending parameters back to the researcher**, parameters tagged as `local` are excluded from the payload. The researcher therefore never sees or aggregates them, and they play no role in the global model update.
+
+From the researcher's perspective, this has the following practical implications:
+
+- `local` parameters are absent from aggregation results: they will not appear in `experiment.aggregated_params()`, nor in the raw per-node replies accessible via `experiment.training_replies()`.
+- `local` parameters are still present in the researcher-side training plan: they remain accessible through `experiment.training_plan().get_model_params()` and `experiment.training_plan().model()`. However, these values originate from `init_model`: they reflect the initial weights as defined by the researcher, not the values that were actually trained and retained on each node. In particular, they do not correspond to the local parameter values that nodes will restore at the start of the next round (which, for parameters tagged as both `local` and `persistent`, are the node's own saved values from the previous round).
+
+### Caution with advanced optimizers
+
+When using a `declearn`-based optimizer, the federated engine also exchanges optimizer auxiliary variables between the node and the researcher at each round (e.g., control variates for Scaffold). Fed-BioMed handles `local` parameters specifically in this exchange:
+
+- **When collecting auxiliary variables** to send back to the researcher (at the end of a round), auxiliary variables corresponding to `local` parameters are stripped from the payload. The researcher therefore never receives nor aggregates the optimizer state associated with local parameters.
+- **When processing auxiliary variables** received from the researcher (at the beginning of a round), the auxiliary variables for `local` parameters are reset to zero vectors on the node side. This prevents any cross-round accumulation of optimizer state for parameters that are not globally shared.
+
+!!! warning "Interaction with Declearn optimizers"
+    Using parameters tagged as `local` in combination with more complex federated optimizers such as those provided by `declearn` (e.g., Scaffold, or other stateful `OptiModule`-based optimizers) may lead to unexpected or incorrect behavior. These optimizers maintain internal auxiliary variables (e.g., gradient moments, control variates) that are tracked per parameter. When a parameter is tagged as `local`, its associated auxiliary variables are not shared nor aggregated. In practice, this may cause training instability or degraded convergence. It is therefore strongly recommended to use `local` parameters only with simple, stateless optimizers, unless you are fully aware of the implications for the optimizer state.
